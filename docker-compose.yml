@@ -14,3 +14,12 @@ services:
       - "./nginx/nginx-http-proxy.conf:/etc/nginx/conf.d/default.conf"
     restart: always  
 
+  frp:
+    image: cloverzrg/frps-docker
+    container_name: frp
+    ports:
+      - "7001:7001"
+      - "7500:7500"
+    volumes:
+      - "./frp/frps.ini:/conf/frps.ini"
+    restart: always  
