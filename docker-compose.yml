@@ -6,6 +6,8 @@ services:
     container_name: nginx_proxy
     ports:
       - "8001-8005:8001-8005"
+      - "7500:7500"
+      - "7001:7001"
     volumes:
       - "./nginx/cert/music.pem:/etc/nginx/cert/music.pem"
       - "./nginx/cert/music.key:/etc/nginx/cert/music.key"
@@ -17,9 +19,6 @@ services:
   frp:
     image: cloverzrg/frps-docker
     container_name: frp
-    ports:
-      - "7001:7001"
-      - "7500:7500"
     volumes:
       - "./frp/frps.ini:/conf/frps.ini"
     restart: always  
