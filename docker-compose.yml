@@ -9,6 +9,7 @@ services:
       - "7500:7500"
       - "7001:7001"
     volumes:
+      - "/log/:/var/log/nginx/"
       - "./nginx/cert/music.pem:/etc/nginx/cert/music.pem"
       - "./nginx/cert/music.key:/etc/nginx/cert/music.key"
       - "./nginx/nginx-base.conf:/etc/nginx/nginx.conf"
@@ -20,5 +21,5 @@ services:
     image: cloverzrg/frps-docker
     container_name: frp
     volumes:
-      - "./frp/frps.ini:/conf/frps.ini"
+      - "./frps/frps.ini:/conf/frps.ini"
     restart: always  
