@@ -4,22 +4,19 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/sirupsen/logrus"
 	"io"
+	"nginx-proxy/meta"
+	"nginx-proxy/util"
 	"os"
+	"strings"
 	"time"
 )
 
-type digData struct {
-	time  string
-	url   string
-	refer string
-	us    string
-}
-
 type urlData struct {
-	data     digData
-	username string
+	data     meta.DigData
+	username meta.User
 }
 
 type urlNode struct {
@@ -81,13 +78,14 @@ func main() {
 	// 创建 PV UV 统计器
 	go pvCounter(pvChannel, storageChannel)
 	go uvCounter(uvChannel, storageChannel)
-	// 可扩展的
+	// TODO: 可以做加更多的统计器
 
 	//创建存储器
 	go dataStorage(storageChannel)
 	time.Sleep(1000 * time.Second)
 }
 
+// 一行一行地将数据从日志文件中读取到 logChannel 中
 func readFileLineByLine(params cmdParams, logChannel chan string) {
 	fd, err := os.Open(params.logFilePath)
 	if err != nil {
@@ -101,8 +99,6 @@ func readFileLineByLine(params cmdParams, logChannel chan string) {
 	for {
 		line, err := bufferRead.ReadString('\n')
 		logChannel <- line
-		log.Infof("line: ", line)
-		fmt.Printf(line)
 		count++
 
 		if count%(1000*params.routineNum) == 0 {
@@ -119,8 +115,71 @@ func readFileLineByLine(params cmdParams, logChannel chan string) {
 	}
 }
 
+// 对一行一行的日志进行处理
 func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
+	for logStr := range logChannel {
+		// 切割日志字符串, 假如返回的数据是空,那么就不需要解析了
+		data := cutLogFetchData(logStr)
+		if data == nil {
+			continue
+		}
 
+		// 获取用户信息
+		user := meta.User{}
+		claims, err := util.ParseToken(data.HttpToken, []byte("onlinemusic"))
+		if err != nil {
+			user.IsAnonymous = true
+			user.IsAuthenticated = false
+			user.IsAdmin = false
+			fmt.Println(user)
+		} else {
+			user.Uid = int64(claims.(jwt.MapClaims)["uid"].(float64))
+			user.Username = claims.(jwt.MapClaims)["name"].(string)
+			user.IsAnonymous = false
+			user.IsAuthenticated = true
+			user.IsAdmin = claims.(jwt.MapClaims)["isAdmin"].(bool)
+		}
+
+		// TODO: 可以做更多的处理
+
+		// 将数据放到 Channel
+		uData := urlData{
+			data:     *data,
+			username: user,
+		}
+		pvChannel <- uData
+		uvChannel <- uData
+		fmt.Println(uData)
+	}
+}
+
+// 将一行的日志切割到结构体中
+func cutLogFetchData(logStr string) *meta.DigData {
+	values := strings.Split(logStr, "\"")
+	var res []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			res = append(res, value)
+		}
+	}
+	if len(res) > 0 {
+		data := meta.DigData{
+			RemoteAddr:        res[0],
+			RemoteUser:        res[1],
+			TimeLocal:         res[2],
+			Request:           res[3],
+			Status:            res[4],
+			BodyBytesSent:     res[5],
+			HttpReferer:       res[6],
+			HttpUserAgent:     res[7],
+			HttpXForwardedFor: res[8],
+			HttpToken:         res[9],
+		}
+		return &data
+	}
+
+	return nil
 }
 
 func pvCounter(pvChannel chan urlData, storageChannel chan storageBlock) {
