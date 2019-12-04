@@ -12,7 +12,9 @@ type DigData struct {
 	RemoteAddr        string
 	RemoteUser        string
 	TimeLocal         string
-	Request           string
+	HttpMethod        string
+	HttpUrl           string
+	HttpVersion       string
 	Status            string
 	BodyBytesSent     string
 	HttpReferer       string

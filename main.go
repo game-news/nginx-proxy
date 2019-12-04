@@ -3,29 +3,27 @@ package main
 import (
 	"bufio"
 	"flag"
-	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/sirupsen/logrus"
 	"io"
+	"nginx-proxy/cache/myredis"
 	"nginx-proxy/meta"
 	"nginx-proxy/util"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type urlData struct {
-	data     meta.DigData
-	username meta.User
-}
-
-type urlNode struct {
+	data meta.DigData
+	user meta.User
 }
 
 type storageBlock struct {
 	counterType  string
 	storageModel string
-	unode        urlNode
+	uData        urlData
 }
 
 type cmdParams struct {
@@ -34,6 +32,7 @@ type cmdParams struct {
 }
 
 var log = logrus.New()
+var redisCli = myredis.RedisPool().Get()
 
 func init() {
 	log.Out = os.Stdout
@@ -131,7 +130,6 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 			user.IsAnonymous = true
 			user.IsAuthenticated = false
 			user.IsAdmin = false
-			fmt.Println(user)
 		} else {
 			user.Uid = int64(claims.(jwt.MapClaims)["uid"].(float64))
 			user.Username = claims.(jwt.MapClaims)["name"].(string)
@@ -144,12 +142,11 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 
 		// 将数据放到 Channel
 		uData := urlData{
-			data:     *data,
-			username: user,
+			data: *data,
+			user: user,
 		}
 		pvChannel <- uData
 		uvChannel <- uData
-		fmt.Println(uData)
 	}
 }
 
@@ -164,11 +161,14 @@ func cutLogFetchData(logStr string) *meta.DigData {
 		}
 	}
 	if len(res) > 0 {
+		r := strings.Split(res[3], " ")
 		data := meta.DigData{
 			RemoteAddr:        res[0],
 			RemoteUser:        res[1],
 			TimeLocal:         res[2],
-			Request:           res[3],
+			HttpMethod:        r[0],
+			HttpUrl:           r[1],
+			HttpVersion:       r[2],
 			Status:            res[4],
 			BodyBytesSent:     res[5],
 			HttpReferer:       res[6],
@@ -183,13 +183,57 @@ func cutLogFetchData(logStr string) *meta.DigData {
 }
 
 func pvCounter(pvChannel chan urlData, storageChannel chan storageBlock) {
-
+	for uData := range pvChannel {
+		sItem := storageBlock{
+			counterType:  "pv",
+			storageModel: "ZINCREBY",
+			uData:        uData,
+		}
+		storageChannel <- sItem
+	}
 }
 
 func uvCounter(uvChannel chan urlData, storageChannel chan storageBlock) {
+	for uData := range uvChannel {
+		// HyperLogLog redis
+		hyperLogLogKey := "uv_hpll_" + getTime(uData.data.TimeLocal, "day")
+		ret, err := redisCli.Do("PFADD", hyperLogLogKey, uData.data.RemoteAddr, "EX", 86400)
+		if err != nil {
+			log.Warningln("UvCounter check redis hyperloglog failded.", err.Error())
+		}
+		if ret != 1 {
+			continue
+		}
 
+		sItem := storageBlock{
+			counterType:  "uv",
+			storageModel: "ZINCREBY",
+			uData:        uData,
+		}
+		storageChannel <- sItem
+	}
+}
+
+func getTime(logTime, timeType string) string {
+	var item string
+
+	switch timeType {
+	case "day":
+		item = "2006-01-02"
+		break
+	case "hour":
+		item = "2006-01-02 15"
+		break
+	case "min":
+		item = "2006-01-02 15:04"
+		break
+	}
+	t, _ := time.Parse(item, time.Now().Format(item))
+	return strconv.FormatInt(t.Unix(), 10)
 }
 
 func dataStorage(storageChannel chan storageBlock) {
+	for _ = range storageChannel {
 
+	}
 }

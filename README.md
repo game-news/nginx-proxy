@@ -25,3 +25,7 @@ git remote add upstream https://github.com/dgut-group-ten/nginx-proxy.git
 git fetch upstream
 git merge upstream/master
 ```
+
+## 参考资料
+
+-[Convert a float64 to an int in Go](https://stackoverflow.com/questions/8022389/convert-a-float64-to-an-int-in-go/8022789)
