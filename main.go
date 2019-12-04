@@ -3,21 +3,26 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/mediocregopher/radix.v2/pool"
+	"github.com/mediocregopher/radix.v2/redis"
 	"github.com/sirupsen/logrus"
 	"io"
-	"nginx-proxy/cache/myredis"
 	"nginx-proxy/meta"
 	"nginx-proxy/util"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type urlData struct {
-	data meta.DigData
-	user meta.User
+	data    meta.DigData
+	user    meta.User
+	urlType string
+	urlId   string
 }
 
 type storageBlock struct {
@@ -32,15 +37,26 @@ type cmdParams struct {
 }
 
 var log = logrus.New()
-var redisCli = myredis.RedisPool().Get()
 
 func init() {
 	log.Out = os.Stdout
 	log.SetLevel(logrus.DebugLevel)
 }
 
+func df(network, addr string) (*redis.Client, error) {
+	client, err := redis.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	if err = client.Cmd("AUTH", "123456").Err; err != nil {
+		client.Close()
+		return nil, err
+	}
+	return client, nil
+}
+
 func main() {
-	// 获取参数\
+	// 获取参数
 	logFilePath := flag.String("logFilePath", "log/http-access.log", "log file path")
 	routineNum := flag.Int("routineNum", 5, "consumer number by goroutine")
 	l := flag.String("l", "log/app.log", "this program runtime log path")
@@ -66,6 +82,20 @@ func main() {
 	var uvChannel = make(chan urlData, params.routineNum)
 	var storageChannel = make(chan storageBlock, params.routineNum)
 
+	// Redis Pool
+	redisPool, err := pool.NewCustom("tcp", "music-02.niracler.com:6377", 2*params.routineNum, df)
+	if err != nil {
+		log.Fatalln("Redis pooll created failed.")
+		panic(err)
+	} else {
+		go func() {
+			for {
+				redisPool.Cmd("PING")
+				time.Sleep(3 * time.Second)
+			}
+		}()
+	}
+
 	// 日志消费者
 	go readFileLineByLine(params, logChannel)
 
@@ -76,11 +106,11 @@ func main() {
 
 	// 创建 PV UV 统计器
 	go pvCounter(pvChannel, storageChannel)
-	go uvCounter(uvChannel, storageChannel)
+	go uvCounter(uvChannel, storageChannel, redisPool)
 	// TODO: 可以做加更多的统计器
 
 	//创建存储器
-	go dataStorage(storageChannel)
+	go dataStorage(storageChannel, redisPool)
 	time.Sleep(1000 * time.Second)
 }
 
@@ -141,9 +171,24 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 		// TODO: 可以做更多的处理
 
 		// 将数据放到 Channel
+		r1, _ := regexp.Compile("song|author|playlist|user|admin|other|media|static")
+		r2, _ := regexp.Compile("/([0-9]+)")
+		urlType := r1.FindString(data.HttpUrl)
+		if urlType == "" {
+			urlType = "other"
+		}
+
+		urlId := r2.FindString(data.HttpUrl)
+		if urlId != "" {
+			urlId = urlId[1:]
+		} else {
+			urlId = "list"
+		}
 		uData := urlData{
-			data: *data,
-			user: user,
+			data:    *data,
+			user:    user,
+			urlType: urlType,
+			urlId:   urlId,
 		}
 		pvChannel <- uData
 		uvChannel <- uData
@@ -186,20 +231,22 @@ func pvCounter(pvChannel chan urlData, storageChannel chan storageBlock) {
 	for uData := range pvChannel {
 		sItem := storageBlock{
 			counterType:  "pv",
-			storageModel: "ZINCREBY",
+			storageModel: "ZINCRBY",
 			uData:        uData,
 		}
 		storageChannel <- sItem
 	}
 }
 
-func uvCounter(uvChannel chan urlData, storageChannel chan storageBlock) {
+func uvCounter(uvChannel chan urlData, storageChannel chan storageBlock, redisPool *pool.Pool) {
 	for uData := range uvChannel {
 		// HyperLogLog redis
 		hyperLogLogKey := "uv_hpll_" + getTime(uData.data.TimeLocal, "day")
-		ret, err := redisCli.Do("PFADD", hyperLogLogKey, uData.data.RemoteAddr, "EX", 86400)
+		ret, err := redisPool.Cmd("PFADD", hyperLogLogKey, uData.data.RemoteAddr, "EX", 86400).Int()
 		if err != nil {
 			log.Warningln("UvCounter check redis hyperloglog failded.", err.Error())
+			fmt.Println("UvCounter check redis hyperloglog failded.", err.Error())
+			continue
 		}
 		if ret != 1 {
 			continue
@@ -207,13 +254,14 @@ func uvCounter(uvChannel chan urlData, storageChannel chan storageBlock) {
 
 		sItem := storageBlock{
 			counterType:  "uv",
-			storageModel: "ZINCREBY",
+			storageModel: "ZINCRBY",
 			uData:        uData,
 		}
 		storageChannel <- sItem
 	}
 }
 
+// 将日志文件中的时间格式化为时间戳的函数
 func getTime(logTime, timeType string) string {
 	var item string
 
@@ -228,12 +276,37 @@ func getTime(logTime, timeType string) string {
 		item = "2006-01-02 15:04"
 		break
 	}
-	t, _ := time.Parse(item, time.Now().Format(item))
+	theTime, _ := time.Parse("02/Jan/2006:15:04:05 -0700", logTime)
+	t, _ := time.Parse(item, theTime.Format(item))
 	return strconv.FormatInt(t.Unix(), 10)
 }
 
-func dataStorage(storageChannel chan storageBlock) {
-	for _ = range storageChannel {
+// 数据存储
+func dataStorage(storageChannel chan storageBlock, redisPool *pool.Pool) {
+	for block := range storageChannel {
+		prefix := block.counterType + "_"
 
+		// 逐层增加, 加洋葱皮的过程
+		// 维度: 天/小时/分钟
+		// 层级: 顶级-大分类-小分类-终极页面
+		// 存储模型: Redis SortedSet
+		setKeys := []string{
+			prefix + "day_" + getTime(block.uData.data.TimeLocal, "day"),
+			prefix + "hour_" + getTime(block.uData.data.TimeLocal, "hour"),
+			prefix + "min_" + getTime(block.uData.data.TimeLocal, "min"),
+			prefix + block.uData.urlType + "_day_" + getTime(block.uData.data.TimeLocal, "day"),
+			prefix + block.uData.urlType + "_hour_" + getTime(block.uData.data.TimeLocal, "hour"),
+			prefix + block.uData.urlType + "_min_" + getTime(block.uData.data.TimeLocal, "min"),
+		}
+
+		rowId := block.uData.urlId
+
+		for _, key := range setKeys {
+			ret, err := redisPool.Cmd(block.storageModel, key, 1, rowId).Int()
+			if err != nil || ret <= 0 {
+				fmt.Println("DataStorage redis storage error.", block.storageModel, key, rowId)
+				log.Errorln("DataStorage redis storage error.", block.storageModel, key, rowId)
+			}
+		}
 	}
 }

@@ -28,4 +28,7 @@ git merge upstream/master
 
 ## 参考资料
 
--[Convert a float64 to an int in Go](https://stackoverflow.com/questions/8022389/convert-a-float64-to-an-int-in-go/8022789)
+- [Convert a float64 to an int in Go](https://stackoverflow.com/questions/8022389/convert-a-float64-to-an-int-in-go/8022789)
+- [Go实战--golang中使用redis(redigo和go-redis/redis)](https://blog.csdn.net/wangshubo1989/article/details/75050024)
+- [Parsing date/time strings which are not 'standard' formats](https://stackoverflow.com/questions/14106541/parsing-date-time-strings-which-are-not-standard-formats/14106561)
+- [ for example in the case of AUTH](https://gowalker.org/github.com/mediocregopher/radix.v2/pool)
