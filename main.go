@@ -162,10 +162,10 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 			user.IsAdmin = false
 		} else {
 			user.Uid = int64(claims.(jwt.MapClaims)["uid"].(float64))
-			user.Username = claims.(jwt.MapClaims)["name"].(string)
+			user.Username, _ = claims.(jwt.MapClaims)["name"].(string)
 			user.IsAnonymous = false
 			user.IsAuthenticated = true
-			user.IsAdmin = claims.(jwt.MapClaims)["isAdmin"].(bool)
+			user.IsAdmin, _ = claims.(jwt.MapClaims)["isAdmin"].(bool)
 		}
 
 		// TODO: 可以做更多的处理
@@ -207,6 +207,10 @@ func cutLogFetchData(logStr string) *meta.DigData {
 	}
 	if len(res) > 0 {
 		r := strings.Split(res[3], " ")
+		if len(r) < 3 {
+			log.Warningln("Some different", res[3])
+			return nil
+		}
 		data := meta.DigData{
 			RemoteAddr:        res[0],
 			RemoteUser:        res[1],
