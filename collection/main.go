@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
-	"nginx-proxy/logcollection/cache"
-	"nginx-proxy/logcollection/cache/myredis"
-	"nginx-proxy/logcollection/consumer"
-	"nginx-proxy/logcollection/counter"
-	"nginx-proxy/logcollection/meta"
-	"nginx-proxy/logcollection/util"
+	"nginx-proxy/collection/cache"
+	"nginx-proxy/collection/cache/myredis"
+	"nginx-proxy/collection/consumer"
+	"nginx-proxy/collection/counter"
+	"nginx-proxy/collection/meta"
+	"nginx-proxy/collection/util"
 	"os"
 	"time"
 )

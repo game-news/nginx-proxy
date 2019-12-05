@@ -3,8 +3,8 @@ package cache
 import (
 	"fmt"
 	"github.com/mediocregopher/radix.v2/pool"
-	"nginx-proxy/logcollection/meta"
-	"nginx-proxy/logcollection/util"
+	"nginx-proxy/collection/meta"
+	"nginx-proxy/collection/util"
 )
 
 // 数据存储
