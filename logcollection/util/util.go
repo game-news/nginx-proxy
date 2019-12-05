@@ -4,10 +4,13 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
+	"github.com/sirupsen/logrus"
 	"hash"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 )
 
 type Sha1Stream struct {
@@ -67,4 +70,31 @@ func GetFileSize(filename string) int64 {
 		return nil
 	})
 	return result
+}
+
+// 将日志文件中的时间格式化为时间戳的函数
+func GetTime(logTime, timeType string) string {
+	var item string
+
+	switch timeType {
+	case "day":
+		item = "2006-01-02"
+		break
+	case "hour":
+		item = "2006-01-02 15"
+		break
+	case "min":
+		item = "2006-01-02 15:04"
+		break
+	}
+	theTime, _ := time.Parse("02/Jan/2006:15:04:05 -0700", logTime)
+	t, _ := time.Parse(item, theTime.Format(item))
+	return strconv.FormatInt(t.Unix(), 10)
+}
+
+var Log = logrus.New()
+
+func init() {
+	Log.Out = os.Stdout
+	Log.SetLevel(logrus.DebugLevel)
 }
