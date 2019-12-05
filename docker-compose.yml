@@ -6,6 +6,7 @@ services:
     container_name: nginx_proxy
     ports:
       - "8001-8005:8001-8005"
+      - "6377:6377"
       - "7500:7500"
       - "7001:7001"
     volumes:
