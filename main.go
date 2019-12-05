@@ -9,7 +9,6 @@ import (
 	"github.com/mediocregopher/radix.v2/redis"
 	"github.com/sirupsen/logrus"
 	"io"
-	"nginx-proxy/meta"
 	"nginx-proxy/util"
 	"os"
 	"regexp"
@@ -18,9 +17,32 @@ import (
 	"time"
 )
 
+type user struct {
+	Uid             int64
+	Username        string
+	IsAnonymous     bool
+	IsAuthenticated bool
+	IsAdmin         bool
+}
+
+type digData struct {
+	RemoteAddr        string
+	RemoteUser        string
+	TimeLocal         string
+	HttpMethod        string
+	HttpUrl           string
+	HttpVersion       string
+	Status            string
+	BodyBytesSent     string
+	HttpReferer       string
+	HttpUserAgent     string
+	HttpXForwardedFor string
+	HttpToken         string
+}
+
 type urlData struct {
-	data    meta.DigData
-	user    meta.User
+	data    digData
+	user    user
 	urlType string
 	urlId   string
 }
@@ -34,6 +56,7 @@ type storageBlock struct {
 type cmdParams struct {
 	logFilePath string
 	routineNum  int
+	lineNumName string
 }
 
 var log = logrus.New()
@@ -59,12 +82,14 @@ func main() {
 	// 获取参数
 	logFilePath := flag.String("logFilePath", "log/http-access.log", "log file path")
 	routineNum := flag.Int("routineNum", 5, "consumer number by goroutine")
+	lineNumName := flag.String("lineNumName", "log_line_1", "consumer number by goroutine")
 	l := flag.String("l", "log/app.log", "this program runtime log path")
 	flag.Parse()
 
 	params := cmdParams{
 		logFilePath: *logFilePath,
 		routineNum:  *routineNum,
+		lineNumName: *lineNumName,
 	}
 
 	// 打日志
@@ -97,11 +122,11 @@ func main() {
 	}
 
 	// 日志消费者
-	go readFileLineByLine(params, logChannel)
+	go readFileLineByLine(params, logChannel, redisPool)
 
 	// 创建一组日志处理
 	for i := 0; i < params.routineNum; i++ {
-		go logConsumer(logChannel, pvChannel, uvChannel)
+		go logConsumer(params, logChannel, pvChannel, uvChannel, redisPool)
 	}
 
 	// 创建 PV UV 统计器
@@ -115,7 +140,12 @@ func main() {
 }
 
 // 一行一行地将数据从日志文件中读取到 logChannel 中
-func readFileLineByLine(params cmdParams, logChannel chan string) {
+func readFileLineByLine(params cmdParams, logChannel chan string, redisPool *pool.Pool) {
+	maxNum, err := redisPool.Cmd("GET", params.lineNumName).Int()
+	if err != nil {
+		maxNum = 0
+	}
+
 	fd, err := os.Open(params.logFilePath)
 	if err != nil {
 		log.Warn("ReadFileLineByLine can not open file, err:" + err.Error())
@@ -127,8 +157,12 @@ func readFileLineByLine(params cmdParams, logChannel chan string) {
 	bufferRead := bufio.NewReader(fd)
 	for {
 		line, err := bufferRead.ReadString('\n')
-		logChannel <- line
 		count++
+
+		if maxNum > count {
+			continue
+		}
+		logChannel <- line
 
 		if count%(1000*params.routineNum) == 0 {
 			log.Infof("ReadFileLineByLine line: %d", count)
@@ -145,7 +179,7 @@ func readFileLineByLine(params cmdParams, logChannel chan string) {
 }
 
 // 对一行一行的日志进行处理
-func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
+func logConsumer(params cmdParams, logChannel chan string, pvChannel, uvChannel chan urlData, redisPool *pool.Pool) {
 	for logStr := range logChannel {
 		// 切割日志字符串, 假如返回的数据是空,那么就不需要解析了
 		data := cutLogFetchData(logStr)
@@ -153,8 +187,13 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 			continue
 		}
 
+		_, err := redisPool.Cmd("INCR", params.lineNumName).Int()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+
 		// 获取用户信息
-		user := meta.User{}
+		user := user{}
 		claims, err := util.ParseToken(data.HttpToken, []byte("onlinemusic"))
 		if err != nil {
 			user.IsAnonymous = true
@@ -196,7 +235,7 @@ func logConsumer(logChannel chan string, pvChannel, uvChannel chan urlData) {
 }
 
 // 将一行的日志切割到结构体中
-func cutLogFetchData(logStr string) *meta.DigData {
+func cutLogFetchData(logStr string) *digData {
 	values := strings.Split(logStr, "\"")
 	var res []string
 	for _, value := range values {
@@ -211,7 +250,7 @@ func cutLogFetchData(logStr string) *meta.DigData {
 			log.Warningln("Some different", res[3])
 			return nil
 		}
-		data := meta.DigData{
+		data := digData{
 			RemoteAddr:        res[0],
 			RemoteUser:        res[1],
 			TimeLocal:         res[2],
