@@ -1,10 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"nginx-proxy/collection/cache"
 	"nginx-proxy/collection/cache/myredis"
+	"nginx-proxy/collection/conf"
 	"nginx-proxy/collection/consumer"
 	"nginx-proxy/collection/counter"
 	"nginx-proxy/collection/meta"
@@ -14,26 +14,15 @@ import (
 )
 
 func main() {
-	// 获取参数
-	logFilePath := flag.String("logFilePath", "log/http-access.log", "log file path")
-	routineNum := flag.Int("routineNum", 5, "consumer number by goroutine")
-	l := flag.String("l", "log/app.log", "this program runtime log path")
-	flag.Parse()
-
-	lineNumName := os.Getenv("LINE_NUMBER_NAME")
-	if lineNumName == "" {
-		lineNumName = "log_line_1"
-	}
-
 	params := meta.CmdParams{
-		LogFilePath: *logFilePath,
-		RoutineNum:  *routineNum,
-		LineNumName: lineNumName,
+		LogFilePath: conf.LogFilePath,
+		RoutineNum:  5,
+		LineNumName: conf.LineNumName,
 	}
 	fmt.Println(params)
 
 	// 打日志
-	logFd, err := os.OpenFile(*l, os.O_CREATE|os.O_WRONLY, 0644)
+	logFd, err := os.OpenFile(conf.LogFile, os.O_CREATE|os.O_WRONLY, 0644)
 	if err == nil {
 		util.Log.Out = logFd
 		defer logFd.Close()

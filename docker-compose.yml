@@ -21,7 +21,7 @@ services:
     container_name: log_collect
     build: .
     volumes:
-      - "./log/:/go/src/nginx-proxy/log/"
+      - "/log/:/go/src/nginx-proxy/log/"
     env_file:
       - .env
     restart: always
