@@ -16,7 +16,16 @@ services:
       - "./nginx/nginx-base.conf:/etc/nginx/nginx.conf"
       - "./nginx/nginx-stream-proxy.conf:/etc/nginx/stream.conf.d/nginx-stream-proxy.conf"
       - "./nginx/nginx-http-proxy.conf:/etc/nginx/conf.d/default.conf"
-    restart: always  
+    restart: always
+
+  collect:
+    container_name: log_collect
+    build: .
+    volumes:
+      - "/log/:/go/src/nginx-proxy/log/"
+    env_file:
+      - .env
+    restart: always
 
   frp:
     image: cloverzrg/frps-docker

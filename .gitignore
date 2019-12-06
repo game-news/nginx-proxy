@@ -17,3 +17,5 @@ nginx/cert/music.pem
 .idea
 
 log
+
+.env
