@@ -39,7 +39,9 @@ func main() {
 	var logChannel = make(chan string, 3*params.RoutineNum)
 	var pvChannel = make(chan meta.UrlData, params.RoutineNum)
 	var uvChannel = make(chan meta.UrlData, params.RoutineNum)
-	var storageChannel = make(chan meta.StorageBlock, params.RoutineNum)
+	var clickChannel = make(chan meta.UrlData, params.RoutineNum)
+	var pvuvStorChannel = make(chan meta.StorageBlock, params.RoutineNum)
+	var cliStorChannel = make(chan meta.StorageBlock, params.RoutineNum)
 
 	// Redis Pool
 	redisPool := myredis.RedisPool()
@@ -49,15 +51,18 @@ func main() {
 
 	// 创建一组日志处理
 	for i := 0; i < params.RoutineNum; i++ {
-		go consumer.LogConsumer(params, logChannel, pvChannel, uvChannel, redisPool)
+		go consumer.LogConsumer(params, logChannel, pvChannel, uvChannel, clickChannel, redisPool)
 	}
 
-	// 创建 PV UV 统计器
-	go counter.PvCounter(pvChannel, storageChannel)
-	go counter.UvCounter(uvChannel, storageChannel, redisPool)
+	// 创建各种统计器
+	go counter.PvCounter(pvChannel, pvuvStorChannel)            // pv统计器
+	go counter.UvCounter(uvChannel, pvuvStorChannel, redisPool) // uv统计器
+	go counter.ClickCounter(clickChannel, cliStorChannel)       // 点击量统计器
 	// TODO: 可以做加更多的统计器
 
 	//创建存储器
-	go cache.DataStorage(storageChannel, redisPool)
-	time.Sleep(1000 * time.Second)
+	go cache.DataStorage(pvuvStorChannel, redisPool)
+	go cache.ClickStorage(cliStorChannel, redisPool)
+
+	time.Sleep(1000 * time.Hour)
 }

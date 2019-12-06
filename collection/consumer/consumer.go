@@ -6,6 +6,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mediocregopher/radix.v2/pool"
 	"io"
+	"nginx-proxy/collection/conf"
 	"nginx-proxy/collection/meta"
 	"nginx-proxy/collection/util"
 	"os"
@@ -54,7 +55,7 @@ func ReadFileLineByLine(params meta.CmdParams, logChannel chan string, redisPool
 }
 
 // 对一行一行的日志进行处理
-func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvChannel chan meta.UrlData, redisPool *pool.Pool) {
+func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvChannel, clickChannel chan meta.UrlData, redisPool *pool.Pool) {
 	for logStr := range logChannel {
 		// 切割日志字符串, 假如返回的数据是空,那么就不需要解析了
 		data := cutLogFetchData(logStr)
@@ -83,9 +84,16 @@ func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvCha
 		}
 
 		// TODO: 可以做更多的处理
+		if !user.IsAnonymous {
+			key := "action_" + fmt.Sprintf("%d", user.Uid)
+			_, err := redisPool.Cmd("LPUSH", key, logStr).Int()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
 
 		// 将数据放到 Channel
-		r1, _ := regexp.Compile("song|author|playlist|user|admin|other|media|static")
+		r1, _ := regexp.Compile(conf.ResourceType)
 		r2, _ := regexp.Compile("/([0-9]+)")
 		urlType := r1.FindString(data.HttpUrl)
 		if urlType == "" {
@@ -106,6 +114,7 @@ func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvCha
 		}
 		pvChannel <- uData
 		uvChannel <- uData
+		clickChannel <- uData
 	}
 }
 
