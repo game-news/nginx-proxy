@@ -7,7 +7,7 @@ var LogFile = "log/app.log"
 var LineNumName = "log_line_test"
 var RedisHost = "music-01.niracler.com:6377"
 var RedisPass = "123456"
-var ResourceType = "song|author|playlist|user|admin|other|media|static"
+var ResourceType = "song|author|playlist|user|admin|other|media|static|comment"
 
 func init() {
 	// 假如为空，配置默认值
