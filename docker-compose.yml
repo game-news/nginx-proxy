@@ -5,17 +5,19 @@ services:
     image: nginx:alpine
     container_name: nginx_proxy
     ports:
-      - "8001-8005:8001-8005"
+      - "443:443"
+      - "80:80"
+      - "8000-8005:8000-8005"
       - "6377:6377"
       - "7500:7500"
       - "7001:7001"
     volumes:
       - "/log/:/var/log/nginx/"
-      - "./nginx/cert/music.pem:/etc/nginx/cert/music.pem"
-      - "./nginx/cert/music.key:/etc/nginx/cert/music.key"
+      - "./nginx/cert/:/etc/nginx/cert/"
       - "./nginx/nginx-base.conf:/etc/nginx/nginx.conf"
       - "./nginx/nginx-stream-proxy.conf:/etc/nginx/stream.conf.d/nginx-stream-proxy.conf"
       - "./nginx/nginx-http-proxy.conf:/etc/nginx/conf.d/default.conf"
+      - "./dist/:/usr/share/nginx/html/"
     restart: always
 
   collect:
@@ -23,8 +25,6 @@ services:
     build: .
     volumes:
       - "/log/:/go/src/nginx-proxy/log/"
-    env_file:
-      - .env
     restart: always
 
   frp:

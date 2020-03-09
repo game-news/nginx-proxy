@@ -1,5 +1,7 @@
-nginx/cert/music.key
-nginx/cert/music.pem 
+nginx/cert/*.key
+nginx/cert/*.pem 
+
+dist
 
 # Binaries for programs and plugins
 *.exe
