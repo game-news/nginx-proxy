@@ -1,11 +1,12 @@
 package myredis
 
 import (
+	"log"
+	"time"
+
+	"gamenews.niracler.com/collection/core/conf"
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/redis"
-	"nginx-proxy/collection/conf"
-	"nginx-proxy/collection/util"
-	"time"
 )
 
 var redisPool *pool.Pool
@@ -26,7 +27,7 @@ func df(network, addr string) (*redis.Client, error) {
 func newRedisPool() *pool.Pool {
 	redisPool, err := pool.NewCustom("tcp", conf.RedisHost, 2*5, df)
 	if err != nil {
-		util.Log.Fatalln("Redis pooll created failed.")
+		log.Fatalln("Redis pool created failed.")
 		panic(err)
 	} else {
 		go func() {

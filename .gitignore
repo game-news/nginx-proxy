@@ -21,3 +21,5 @@ dist
 log
 
 .env
+
+app.ini

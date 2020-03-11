@@ -3,26 +3,27 @@ package consumer
 import (
 	"bufio"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/mediocregopher/radix.v2/pool"
 	"io"
-	"nginx-proxy/collection/conf"
-	"nginx-proxy/collection/meta"
-	"nginx-proxy/collection/util"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"gamenews.niracler.com/collection/core/conf"
+	"gamenews.niracler.com/collection/core/meta"
+	"gamenews.niracler.com/collection/core/util"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/mediocregopher/radix.v2/pool"
 )
 
 // 一行一行地将数据从日志文件中读取到 logChannel 中
-func ReadFileLineByLine(params meta.CmdParams, logChannel chan string, redisPool *pool.Pool) {
-	maxNum, err := redisPool.Cmd("GET", params.LineNumName).Int()
+func ReadFileLineByLine(logChannel chan string, redisPool *pool.Pool) {
+	maxNum, err := redisPool.Cmd("GET", conf.LineNumName).Int()
 	if err != nil {
 		maxNum = 0
 	}
 
-	fd, err := os.Open(params.LogFilePath)
+	fd, err := os.Open(conf.NginxLogFile)
 	if err != nil {
 		util.Log.Warn("ReadFileLineByLine can not open file, err:" + err.Error())
 		return
@@ -40,7 +41,7 @@ func ReadFileLineByLine(params meta.CmdParams, logChannel chan string, redisPool
 		}
 		logChannel <- line
 
-		if count%(1000*params.RoutineNum) == 0 {
+		if count%(1000*conf.RoutineNum) == 0 {
 			util.Log.Infof("ReadFileLineByLine line: %d", count)
 		}
 		if err != nil {
@@ -55,7 +56,7 @@ func ReadFileLineByLine(params meta.CmdParams, logChannel chan string, redisPool
 }
 
 // 对一行一行的日志进行处理
-func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvChannel, clickChannel chan meta.UrlData, redisPool *pool.Pool) {
+func LogConsumer(logChannel chan string, pvChannel, uvChannel, clickChannel chan meta.UrlData, redisPool *pool.Pool) {
 	for logStr := range logChannel {
 		// 切割日志字符串, 假如返回的数据是空,那么就不需要解析了
 		data := cutLogFetchData(logStr)
@@ -63,7 +64,7 @@ func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvCha
 			continue
 		}
 
-		_, err := redisPool.Cmd("INCR", params.LineNumName).Int()
+		_, err := redisPool.Cmd("INCR", conf.LineNumName).Int()
 		if err != nil {
 			fmt.Println(err.Error())
 		}
@@ -114,7 +115,7 @@ func LogConsumer(params meta.CmdParams, logChannel chan string, pvChannel, uvCha
 		}
 		pvChannel <- uData
 		uvChannel <- uData
-		clickChannel <- uData
+		// clickChannel <- uData
 	}
 }
 

@@ -1,9 +1,9 @@
 package counter
 
 import (
+	"gamenews.niracler.com/collection/core/meta"
+	"gamenews.niracler.com/collection/core/util"
 	"github.com/mediocregopher/radix.v2/pool"
-	"nginx-proxy/collection/meta"
-	"nginx-proxy/collection/util"
 )
 
 // 资源点击量计算, "click_" + resType

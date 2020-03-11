@@ -2,9 +2,10 @@ package cache
 
 import (
 	"fmt"
+
+	"gamenews.niracler.com/collection/core/meta"
+	"gamenews.niracler.com/collection/core/util"
 	"github.com/mediocregopher/radix.v2/pool"
-	"nginx-proxy/collection/meta"
-	"nginx-proxy/collection/util"
 )
 
 // PVUV数据存储
