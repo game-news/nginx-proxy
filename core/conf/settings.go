@@ -15,6 +15,7 @@ var (
 	RedisHost    string
 	RedisPass    string
 	ResourceType string
+	JWTSecret    string
 )
 
 func init() {
@@ -40,6 +41,7 @@ func LoadApp() {
 	RoutineNum = sec.Key("ROUNTINE_NUM").MustInt(5)
 	LineNumName = sec.Key("LINE_NUMBER_NAME").MustString("log_line")
 	ResourceType = sec.Key("RESOURCE_TYPE").MustString("")
+	JWTSecret = sec.Key("JWT_SECRET").MustString("")
 }
 
 func LoadDatabase() {

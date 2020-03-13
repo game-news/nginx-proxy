@@ -46,7 +46,7 @@ func ReadFileLineByLine(logChannel chan string, redisPool *pool.Pool) {
 		}
 		if err != nil {
 			if err == io.EOF {
-				time.Sleep(3 * time.Second)
+				time.Sleep(30 * time.Second)
 				util.Log.Infof("ReadFileLineByLine wait, readline: %d", count)
 			} else {
 				util.Log.Warn("ReadFileLineByLine read log err :" + err.Error())
@@ -71,17 +71,15 @@ func LogConsumer(logChannel chan string, pvChannel, uvChannel, clickChannel chan
 
 		// 获取用户信息
 		user := meta.User{}
-		claims, err := util.ParseToken(data.HttpToken, []byte("onlinemusic"))
+		token := strings.Split(data.HttpToken, " ")
+		data.HttpToken = token[len(token)-1]
+		claims, err := util.ParseToken(data.HttpToken, []byte("bauSDGV684osDd455EWF846caRHfscbjl"))
 		if err != nil {
 			user.IsAnonymous = true
-			user.IsAuthenticated = false
-			user.IsAdmin = false
 		} else {
-			user.Uid = int64(claims.(jwt.MapClaims)["uid"].(float64))
-			user.Username, _ = claims.(jwt.MapClaims)["name"].(string)
+			user.Uid = int64(claims.(jwt.MapClaims)["user_id"].(float64))
+			user.Username, _ = claims.(jwt.MapClaims)["username"].(string)
 			user.IsAnonymous = false
-			user.IsAuthenticated = true
-			user.IsAdmin, _ = claims.(jwt.MapClaims)["isAdmin"].(bool)
 		}
 
 		// TODO: 可以做更多的处理

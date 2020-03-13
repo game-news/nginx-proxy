@@ -13,6 +13,6 @@ COPY go.mod go.mod
 RUN go mod download
 
 COPY main.go main.go
-COPY collection /go/src/nginx-proxy/collection
+COPY collection /go/src/nginx-proxy/core
 
 ENTRYPOINT ["go", "run", "main.go"]
