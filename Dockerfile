@@ -6,7 +6,8 @@ RUN apk add --no-cache gcc musl-dev git
 WORKDIR /go/src/nginx-proxy
 
 RUN export GO111MODULE=on
-RUN export GOPROXY=https://goproxy.cn,direct
+RUN go env -w GOPROXY=https://goproxy.cn,direct
+RUN go env -w GOPRIVATE=*.corp.example.com
 
 # 下载依赖
 COPY go.mod go.mod
